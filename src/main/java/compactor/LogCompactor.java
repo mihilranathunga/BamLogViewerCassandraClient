@@ -1,5 +1,6 @@
 package compactor;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.rmi.RemoteException;
@@ -12,27 +13,29 @@ import java.util.Map;
 import org.apache.axis2.AxisFault;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.log4j.PropertyConfigurator;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.wso2.carbon.authenticator.stub.LoginAuthenticationExceptionException;
 import org.wso2.carbon.cassandra.mgt.stub.ks.CassandraKeyspaceAdminCassandraServerManagementException;
 
 import compactor.exceptions.CassandraClientException;
 import compactor.util.Constant;
-
 import core.clients.authentication.CarbonAuthenticatorClient;
 import core.clients.service.CassandraKeyspaceAdminClient;
 
 public class LogCompactor {
-	
-	private static final Log log = LogFactory.getLog(LogCompactor.class);
-	
-	private CarbonAuthenticatorClient carbonAuthenticatorClient;
-	private String sessionCookie;
-	private CassandraKeyspaceAdminClient keyspaceClient;
-	
 
-	private List<String> getLogClientHostIPs() {
+	private static final Log log = LogFactory.getLog(LogCompactor.class);
+
+	private static CarbonAuthenticatorClient carbonAuthenticatorClient;
+	private static String sessionCookie;
+	private static CassandraKeyspaceAdminClient keyspaceClient;
+
+	private static java.sql.Connection con = null;
+
+	private static List<String> getLogClientHostIPs() {
 
 		ArrayList<String> columnFamilyIPs = new ArrayList<String>();
 
@@ -42,7 +45,7 @@ public class LogCompactor {
 
 			String ip = parts[1] + "." + parts[2] + "." + parts[3] + "." + parts[4];
 
-			log.info("Host IP of Column Family "+columnFamily+" : "+ip);
+			log.debug("Host IP of Column Family " + columnFamily + " : " + ip);
 
 			columnFamilyIPs.add(ip);
 
@@ -50,60 +53,63 @@ public class LogCompactor {
 		return columnFamilyIPs;
 	}
 
-
-	private List<String> getLogClientColumnFamilies() {
+	private static List<String> getLogClientColumnFamilies() {
 
 		ArrayList<String> logClientColFamilies = new ArrayList<String>();
 
 		String regex =
-				"^" + Constant.LOG_CLIENT_COL_FAMILY_IDENTIFIER +
-				"_(?:\\d{1,3}_){3}\\d{1,3}";
+		               "^" + Constant.LOG_CLIENT_COL_FAMILY_IDENTIFIER +
+		                       "_(?:\\d{1,3}_){3}\\d{1,3}";
 
 		for (String columnFamily : getColumnFamilies()) {
 
 			if (columnFamily.matches(regex)) {
 				logClientColFamilies.add(columnFamily);
-				log.info(columnFamily + "matches regex of log client CF's");
+				log.debug(columnFamily + "matches regex of log client CF's");
 
 			}
 		}
 		return logClientColFamilies;
 	}
 
-
-	private String[] getColumnFamilies() {
+	private static String[] getColumnFamilies() {
 
 		setKeyStoreProperties();
-		
+
 		Map<String, String> carbonDetails = XMLReader.getAdminUserAndPassword();
-		
+
 		String hostName = Constant.BAM_HOST_NAME;
 
 		String[] columnFamilies = null;
 
 		try {
 			carbonAuthenticatorClient = new CarbonAuthenticatorClient(hostName);
-			sessionCookie = carbonAuthenticatorClient.login((String)carbonDetails.get("username"), (String)carbonDetails.get("password"), hostName);
+			sessionCookie =
+			                carbonAuthenticatorClient.login(carbonDetails.get("username"),
+			                                                carbonDetails.get("password"), hostName);
 			if (sessionCookie.equals(null)) {
 				throw new LoginAuthenticationExceptionException("Session Cookie not recieved");
 			}
-			log.debug("Session Cookie : "+sessionCookie);
+			log.debug("Session Cookie : " + sessionCookie);
 			keyspaceClient = new CassandraKeyspaceAdminClient(hostName, sessionCookie);
 
-			columnFamilies = keyspaceClient.ListColumnFamiliesOfCurrentUser(Constant.CASSANDRA_KS_NAME);
+			columnFamilies =
+			                 keyspaceClient.ListColumnFamiliesOfCurrentUser(Constant.CASSANDRA_KS_NAME);
 
 		} catch (AxisFault axisFault) {
-			log.error("Axis fault Occured: Getting column families-" ,axisFault);
+			log.error("Axis fault Occured: Getting column families-", axisFault);
 		} catch (RemoteException re) {
-			log.error("Remote Exception Occured: Getting column families-"+re.getMessage(),re);
+			log.error("Remote Exception Occured: Getting column families-" + re.getMessage(), re);
 		} catch (LoginAuthenticationExceptionException lae) {
-			log.error("Login Authentication Exception Occured: Getting column families-"+lae.getMessage(),lae);
+			log.error("Login Authentication Exception Occured: Getting column families-" +
+			                  lae.getMessage(), lae);
 
 		} catch (CassandraKeyspaceAdminCassandraServerManagementException e) {
-			log.error("CassandraKeyspaceAdminCassandraServerManagementException occured: Getting column families-"+e.getMessage(),e);
+			log.error("CassandraKeyspaceAdminCassandraServerManagementException occured: Getting column families-" +
+			                  e.getMessage(), e);
 			e.printStackTrace();
-		}catch (Exception e){
-			log.error("Exception Occured: Getting column families-"+e.getMessage(), e);
+		} catch (Exception e) {
+			log.error("Exception Occured: Getting column families-" + e.getMessage(), e);
 		}
 		return columnFamilies;
 
@@ -114,85 +120,80 @@ public class LogCompactor {
 		System.setProperty("javax.net.ssl.trustStorePassword", XMLReader.getTrustStorePassword());
 	}
 
+	public static String getData(String hostip, String filekey, String fromTime, String toTime,
+	                             int limit) throws CassandraClientException {
 
-
-	public String getData(String hostip, String filekey, String fromTime, String toTime, int limit) {
-		
 		try {
-	        CassandraCaller.getConnection();
-        } catch (ClassNotFoundException e1) {
-	        log.error("ClassNotFound Exception Occured: While Connecting to Cassandra-"+e1.getMessage(),e1);
-        } catch (SQLException e1) {
-        	log.error("SQLException Exception Occured: While Connecting to Cassandra-"+e1.getMessage(),e1);
-        }
-		
-		JSONArray result = new JSONArray();
-
-			try {
-	            result = CassandraCaller.getLogData(hostip, filekey, fromTime, toTime, limit);
-            } catch (SQLException e1) {
-            	 log.error("SQLException Exception Occured: While Getting Data From Cassandra-"+e1.getMessage(),e1);
-            } catch (CassandraClientException e1) {
-            	 log.error("CassandraClientException Exception Occured: While Getting Data From Cassandra-"+e1.getMessage(),e1);
-            }
-
-
-		StringWriter out = new StringWriter();
+			con = CassandraCaller.getConnection();
+		} catch (ClassNotFoundException | SQLException e1) {
+			log.error("Exception Occured: While Connecting to Cassandra-" + e1.getMessage(), e1);
+			throw new CassandraClientException(e1.getMessage(), e1);
+		}
 		try {
+			JSONArray result = new JSONArray();
+
+			result = CassandraCaller.getLogData(con, hostip, filekey, fromTime, toTime, limit);
+
+			StringWriter out = new StringWriter();
+
 			result.writeJSONString(out);
-		} catch (IOException e) {
-			log.error("Error Serielizing Data Result-"+e.getMessage(), e);
+
+			String jsonText = out.toString();
+
+			return jsonText;
+
+		} catch (IOException | NullPointerException | SQLException e) {
+			log.error("Exception Occured getting Host ip list-" + e.getMessage(), e);
+			throw new CassandraClientException(e.getMessage(), e);
 		}
 
-		String jsonText = out.toString();
-
-		return jsonText;
 	}
 
 	@SuppressWarnings("unchecked")
-	public String getIpList() {
+	public static String getIpList() throws CassandraClientException {
 
-		JSONArray resultJson = new JSONArray();
-
-		for (String ip : getLogClientHostIPs()) {
-
-			JSONObject obj = new JSONObject();
-			obj.put("host_ip", ip);
-
-			resultJson.add(obj);
-		}
-
-		StringWriter out = new StringWriter();
 		try {
+			JSONArray resultJson = new JSONArray();
+
+			for (String ip : getLogClientHostIPs()) {
+
+				JSONObject obj = new JSONObject();
+				obj.put("host_ip", ip);
+
+				resultJson.add(obj);
+			}
+
+			StringWriter out = new StringWriter();
 			resultJson.writeJSONString(out);
-		} catch (IOException e) {
-			log.error("Error Serielizing IP List Result-"+e.getMessage(), e);
+
+			String jsonText = out.toString();
+
+			return jsonText;
+		} catch (IOException | NullPointerException e) {
+			log.error("Exception Occured getting Host ip list-" + e.getMessage(), e);
+			throw new CassandraClientException(e.getMessage(), e);
 		}
 
-		String jsonText = out.toString();
-
-		return jsonText;
 	}
 
 	@SuppressWarnings("unchecked")
-	public String getFileKeyList(String hostip) {
-		
+	public static String getFileKeyList(String hostip) throws CassandraClientException {
+
 		try {
-	        CassandraCaller.getConnection();
-        } catch (ClassNotFoundException e1) {
-	        log.error("ClassNotFound Exception Occured: While Connecting to Cassandra-"+e1.getMessage(),e1);
-        } catch (SQLException e1) {
-        	log.error("SQLException Exception Occured: While Connecting to Cassandra-"+e1.getMessage(),e1);
-        }
+			con = CassandraCaller.getConnection();
+		} catch (ClassNotFoundException | SQLException e1) {
+			log.error("Exception Occured: While Connecting to Cassandra-" + e1.getMessage(), e1);
+			throw new CassandraClientException(e1.getMessage(), e1);
+		}
 
 		ArrayList<String> filekeys = new ArrayList<String>();
 		ResultSet result = null;
 		JSONArray resultJson = new JSONArray();
 
 		StringWriter out = null;
-		
+
 		try {
-			result = CassandraCaller.getFileKeys(hostip);
+			result = CassandraCaller.getFileKeys(con, hostip);
 
 			while (result.next()) {
 
@@ -217,30 +218,39 @@ public class LogCompactor {
 			out = new StringWriter();
 
 			resultJson.writeJSONString(out);
-		} catch (SQLException e ) {
-			log.error("SQLException Occured getting filekeys from cassandra -"+ e.getMessage(),e);
-		} catch (IOException e){
-			log.error("Error Serielizing filekey List Result-"+e.getMessage(), e);
+
+			String jsonText = out.toString();
+
+			return jsonText;
+		} catch (SQLException | IOException e) {
+			log.error("Exception Occured getting filekeys from cassandra -" + e.getMessage(), e);
+			throw new CassandraClientException(e.getMessage(), e);
 		}
 
-		String jsonText = out.toString();
-
-		return jsonText;
-
 	}
-	
+
 	public static void main(String[] args) {
 
-		LogCompactor comp = new LogCompactor();
+		PropertyConfigurator.configure("D:" + File.separator + "cloud" + File.separator +
+		                               "BamLogViewerCassandraClient" + File.separator +
+		                               "resources" + File.separator + "log4j.properties");
 
 		try {
-			//comp.getCassandraDetails();
-			//comp.getTrustStorePassword();
-			// comp.getData("192.168.1.103","syslog","1400132343654","1400137741565",10);
-			// System.out.println(comp.getIpList());
-			//System.out.println(comp.getFileKeyList("192.168.1.103"));
-			//XMLReader.getAdminUserAndPassword();
-			//getCassandraDetails();
+			LogCompactor.setKeyStoreProperties();
+			String ips = LogCompactor.getIpList();
+
+			JSONParser parser = new JSONParser();
+
+			Object obj = parser.parse(ips);
+			JSONArray array = (JSONArray) obj;
+
+			for (Object hostip : array) {
+				System.out.println(((JSONObject) hostip).get("host_ip"));
+				LogCompactor.getFileKeyList((String) ((JSONObject) hostip).get("host_ip"));
+			}
+			LogCompactor.getData("192.168.43.147", "wso2islog", "1401208825432", "1401208825457",
+			                     100);
+
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
 			e.printStackTrace();

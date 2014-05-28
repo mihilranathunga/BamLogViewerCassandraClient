@@ -1,7 +1,10 @@
 package compactor;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,13 +15,13 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.log4j.PropertyConfigurator;
 
 import compactor.util.Constant;
 
 public class XMLReader {
 
 	private static final Log log = LogFactory.getLog(XMLReader.class);
-
 
 	public static Map<String, String> getAdminUserAndPassword() {
 		Map<String, String> adminUserDetails = new HashMap<String, String>();;
@@ -65,8 +68,8 @@ public class XMLReader {
 			log.error("Error Reading USR_MGT_XML ", e);
 		}
 
-		log.info("Admin userName : " + adminUsername);
-		log.info("Admin Password : " + adminPassword);
+		log.debug("Admin userName : " + adminUsername);
+		log.debug("Admin Password : " + adminPassword);
 		return adminUserDetails;
 
 	}
@@ -75,15 +78,15 @@ public class XMLReader {
 		Map<String, String> cassandraDetails = new HashMap<String, String>();
 		XMLInputFactory factory = XMLInputFactory.newInstance();
 		XMLStreamReader reader = null;
-		
-		 String CASSANDRA_JDBC_URL = null;
-		 String CASSANDRA_USERNAME = null;
-		 String CASSANDRA_PASSWORD = null;
-		 String CASSANDRA_HOST_NAME = null;
-		 String CASSANDRA_KS_NAME = null;
-		 
+
+		String CASSANDRA_JDBC_URL = null;
+		String CASSANDRA_USERNAME = null;
+		String CASSANDRA_PASSWORD = null;
+		String CASSANDRA_HOST_NAME = null;
+		String CASSANDRA_KS_NAME = null;
+
 		String datasourceName = null;
-		
+
 		try {
 			reader =
 			         factory.createXMLStreamReader(new FileReader(
@@ -142,14 +145,15 @@ public class XMLReader {
 			log.error("Error Reading MASTER_DATASOURCES_XML ", e);
 		}
 
-		log.info("Cassandra JDBC Url : " + CASSANDRA_JDBC_URL);
-		log.info("Cassandra Admin User Name : " + CASSANDRA_USERNAME);
-		log.info("Cassandra Admin Password : " + CASSANDRA_PASSWORD);
-		log.info("Cassandra Host Name : "+CASSANDRA_HOST_NAME);
-		log.info("Cassandra Default KS Name : "+CASSANDRA_KS_NAME);
+		log.debug("Cassandra JDBC Url : " + CASSANDRA_JDBC_URL);
+		log.debug("Cassandra Admin User Name : " + CASSANDRA_USERNAME);
+		log.debug("Cassandra Admin Password : " + CASSANDRA_PASSWORD);
+		log.debug("Cassandra Host Name : " + CASSANDRA_HOST_NAME);
+		log.debug("Cassandra Default KS Name : " + CASSANDRA_KS_NAME);
 		return cassandraDetails;
 
 	}
+
 	public static String getTrustStorePassword() {
 
 		XMLInputFactory factory = XMLInputFactory.newInstance();
@@ -158,9 +162,7 @@ public class XMLReader {
 
 		boolean trustStore = false;
 		try {
-			reader =
-			         factory.createXMLStreamReader(new FileReader(
-			                                                      Constant.CARBON_XML_PATH));
+			reader = factory.createXMLStreamReader(new FileReader(Constant.CARBON_XML_PATH));
 
 			String tagContent = null;
 
@@ -203,10 +205,20 @@ public class XMLReader {
 			log.error("Error Reading CARBON_XML ", e);
 		}
 
-		log.info("Trust Store Password : "+TRUST_STORE_PASSWORD);
+		log.debug("Trust Store Password : " + TRUST_STORE_PASSWORD);
 		return TRUST_STORE_PASSWORD;
 
 	}
-	
+
+	public static void main(String[] args) {
+
+		PropertyConfigurator.configure("D:" + File.separator + "cloud" + File.separator +
+		                               "BamLogViewerCassandraClient" + File.separator +
+		                               "resources" + File.separator + "log4j.properties");
+
+		XMLReader.getAdminUserAndPassword();
+		XMLReader.getCassandraDetails();
+		XMLReader.getTrustStorePassword();
+	}
 
 }
