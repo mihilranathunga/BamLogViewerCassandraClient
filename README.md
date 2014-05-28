@@ -3,6 +3,8 @@ BamLogViewerCassandraClient
 
 This will handle connections to embedded cassandra for the Log Viewer Bam Toolbox
 
+first install toolbox - https://github.com/mihilranathunga/BamLogViewer
+
 
 jars in the zip in the build should be extracted to BAM_HOME/repository/components/lib
 
