@@ -90,7 +90,7 @@ public class XMLReader {
 		try {
 			reader =
 			         factory.createXMLStreamReader(new FileReader(
-			                                                      Constant.MASTER_DATASOURCES_XML_PATH));
+			                                                      Constant.BAM_DATASOURCES_XML_PATH));
 
 			String tagContent = null;
 
@@ -204,8 +204,9 @@ public class XMLReader {
 		} catch (XMLStreamException | FileNotFoundException e) {
 			log.error("Error Reading CARBON_XML ", e);
 		}
-
+		log.debug("Trust Store Location : " + Constant.TRUST_STORE_PATH);
 		log.debug("Trust Store Password : " + TRUST_STORE_PASSWORD);
+		log.debug("Bam Host Name: "+ Constant.BAM_HOST_NAME);
 		return TRUST_STORE_PASSWORD;
 
 	}
