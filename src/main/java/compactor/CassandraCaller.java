@@ -152,8 +152,8 @@ public class CassandraCaller {
 			try {
 				PreparedStatement st = con.prepareStatement(indexKeys[i]);
 				st.executeQuery();
-			} catch (SQLException e) {
-				log.error("SQLException Occured Creating indexes -" + e.getMessage(), e);
+			} catch (SQLException ignored) {
+				//log.error("SQLException Occured Creating indexes -" + e.getMessage());
 			}
 
 		}

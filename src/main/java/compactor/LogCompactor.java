@@ -185,9 +185,12 @@ public class LogCompactor {
 	        	jsonText = out.toString();
 
 	        	
-	        } catch (IOException | NullPointerException e) {
-	        	log.error("Exception Occured getting Host ip list-" + e.getMessage(), e);
+	        } catch (IOException e ) {
+	        	
 	        	throw new CassandraClientException(e.getMessage(), e);
+	        }catch(NullPointerException e1){
+	        	log.error("Exception Occured getting Host ip list-" + e1.getMessage());
+	        	return "{'info':'No hosts yet'}";
 	        }
         } catch (CassandraClientException e) {
         	 log.error("CassandraClientException Occured getting ip list"+ e.getMessage(),e);
